@@ -1,13 +1,9 @@
 const config = require('../config');
 const { cmd } = require('../command');
-const fs = require('fs');
-const path = require('path');
 const mongoose = require('mongoose');
 
-const configPath = path.join(__dirname, '../config.js');
-
 // ===============================
-// Mongo UserConfig Model (pair.js එකේ තියෙන එකට සමාන)
+// Mongo UserConfig Model
 // ===============================
 let UserConfigModel;
 try {
@@ -18,243 +14,103 @@ try {
 }
 
 // ===============================
-// SAVE CONFIG (File + MongoDB)
+// SAVE - File overwrite karanne NA, MongoDB witharak + Cache clear
 // ===============================
-async function saveConfig(conn = null) {
-    // 1. config.js එකට save
-    const newConfig = `module.exports = ${JSON.stringify(config, null, 4)};`;
-    fs.writeFileSync(configPath, newConfig);
-    delete require.cache[require.resolve('../config')];
-    Object.assign(config, require('../config'));
-
-    // 2. MongoDB එකටත් save (bot number එකෙන්)
+async function saveConfig(conn, key, value) {
     try {
-        if (conn && conn.user && conn.user.id) {
-            const number = conn.user.id.split(':')[0].replace(/[^0-9]/g, '');
-            await UserConfigModel.findOneAndUpdate(
-                { number },
-                { number, config: { ...config }, updatedAt: new Date() },
-                { upsert: true }
-            );
+        if (!conn || !conn.user || !conn.user.id) return false;
+        const number = conn.user.id.split(':')[0].replace(/[^0-9]/g, '');
+        const doc = await UserConfigModel.findOne({ number }).lean();
+        let userConf = doc ? (doc.config || {}) : {};
+        userConf[key] = value;
+
+        await UserConfigModel.findOneAndUpdate(
+            { number },
+            { number, config: userConf, updatedAt: new Date() },
+            { upsert: true }
+        );
+
+        config[key] = value;
+
+        if (global.configCache) {
+            global.configCache.delete(number);
+            global.configCache.delete(conn.user.id.split(':')[0]);
         }
+        return true;
     } catch (e) {
         console.error('Mongo save error:', e.message);
+        return false;
     }
 }
 
-// ===============================
-// OWNER CHECK
-// ===============================
+async function getUserConfig(conn) {
+    try {
+        const number = conn.user.id.split(':')[0].replace(/[^0-9]/g, '');
+        if (global.configCache && global.configCache.has(number)) return global.configCache.get(number);
+        const doc = await UserConfigModel.findOne({ number }).lean();
+        const userConf = doc ? (doc.config || {}) : {};
+        return { ...config, ...userConf };
+    } catch (e) {
+        return config;
+    }
+}
+
 function isOwner(senderNumber, conn) {
     const botNumber = conn.user.id.split(':')[0];
-    return (
-        senderNumber === config.OWNER_NUMBER ||
-        senderNumber === botNumber
-    );
+    return senderNumber === config.OWNER_NUMBER || senderNumber === botNumber;
 }
 
 // ===============================
-// AUTO STATUS READ
+// NUMBER REPLY SETTINGS - RIKA XMD
 // ===============================
-cmd({
-    pattern: 'autostatusread',
-    desc: 'Turn Auto Status Read ON/OFF',
-    category: 'settings',
-    react: '👁️'
-},
-async (conn, mek, m, { args, reply, senderNumber }) => {
-    if (!isOwner(senderNumber, conn)) return reply('❌ OWNER ONLY');
-    if (!args[0]) return reply(`Current Status:\n${config.AUTO_READ_STATUS ? 'ON ✅' : 'OFF ❌'}\n\nExample:\n.autostatusread on`);
-    const option = args[0].toLowerCase();
-    if (option === 'on') { config.AUTO_READ_STATUS = true; await saveConfig(conn); return reply('✅ AUTO STATUS READ ENABLED'); }
-    if (option === 'off') { config.AUTO_READ_STATUS = false; await saveConfig(conn); return reply('❌ AUTO STATUS READ DISABLED'); }
-    reply('Use ON or OFF');
-});
+const NUMBER_SETTINGS = [
+    { id: '1', name: 'Always Online', key: 'ALWAYS_ONLINE' },
+    { id: '2', name: 'Msg Auto Read', key: 'AUTO_READ' },
+    { id: '3', name: 'Auto Typing', key: 'AUTO_TYPING' },
+    { id: '4', name: 'Auto React', key: 'AUTO_REACT' },
+    { id: '5', name: 'Channel React', key: 'AUTO_LIKE_STATUS' },
+    { id: '6', name: 'Anti Delete Group (Same Chat)', key: 'ANTI_DELETE_GROUP' },
+    { id: '7', name: 'Anti Delete Inbox (Same Chat)', key: 'ANTI_DELETE_INBOX' },
+    { id: '8', name: 'Status Delete', key: 'STATUS_DELETE' },
+    { id: '9', name: 'Group Welcome', key: 'GROUP_WELCOME' },
+    { id: '10', name: 'Auto Recording', key: 'AUTO_RECORDING' },
+    { id: '11', name: 'Auto Bio', key: 'AUTO_BIO' },
+    { id: '12', name: 'Always Offline', key: 'ALWAYS_OFFLINE' },
+    { id: '13', name: 'Anti Link', key: 'ANTI_LINK' },
+    { id: '14', name: 'Anti Bad', key: 'ANTI_BAD' },
+    { id: '15', name: 'Auto Status Read', key: 'AUTO_READ_STATUS' },
+];
 
-// ===============================
-// AUTO REACT (Messages Only)
-// ===============================
-cmd({
-    pattern: 'autoreact',
-    desc: 'Turn Auto React (Messages) ON/OFF',
-    category: 'settings',
-    react: '❤️'
-},
-async (conn, mek, m, { args, reply, senderNumber }) => {
-    if (!isOwner(senderNumber, conn)) return reply('❌ OWNER ONLY');
-    if (!args[0]) return reply(`Current Status (Messages):\n${config.AUTO_REACT ? 'ON ✅' : 'OFF ❌'}\n\nExample:\n.autoreact on`);
-    const option = args[0].toLowerCase();
-    if (option === 'on') { config.AUTO_REACT = true; await saveConfig(conn); return reply('✅ AUTO REACT (Messages) ENABLED'); }
-    if (option === 'off') { config.AUTO_REACT = false; await saveConfig(conn); return reply('❌ AUTO REACT (Messages) DISABLED'); }
-    reply('Use ON or OFF');
-});
+function makeToggleCmd(pattern, key, label, emoji) {
+    cmd({
+        pattern: pattern,
+        desc: `Turn ${label} ON/OFF`,
+        category: 'settings',
+        react: emoji
+    },
+    async (conn, mek, m, { args, reply, senderNumber }) => {
+        if (!isOwner(senderNumber, conn)) return reply('❌ OWNER ONLY');
+        const userConf = await getUserConfig(conn);
+        if (!args[0]) return reply(`Current Status:\n${userConf[key] ? 'ON ✅' : 'OFF ❌'}\n\nExample:\n.${pattern} on`);
+        const option = args[0].toLowerCase();
+        if (option === 'on') { await saveConfig(conn, key, true); return reply(`✅ ${label} ENABLED`); }
+        if (option === 'off') { await saveConfig(conn, key, false); return reply(`❌ ${label} DISABLED`); }
+        reply('Use ON or OFF');
+    });
+}
 
-// ===============================
-// AUTO REACT STATUS (Status Only)
-// ===============================
-cmd({
-    pattern: 'autoreactstatus',
-    alias: ['autoreactst', 'statusreact'],
-    desc: 'Turn Auto React Status ON/OFF',
-    category: 'settings',
-    react: '💫'
-},
-async (conn, mek, m, { args, reply, senderNumber }) => {
-    if (!isOwner(senderNumber, conn)) return reply('❌ OWNER ONLY');
-    if (!args[0]) return reply(`Current Status React:\n${config.AUTO_LIKE_STATUS ? 'ON ✅' : 'OFF ❌'}\n\nExample:\n.autoreactstatus on`);
-    const option = args[0].toLowerCase();
-    if (option === 'on') { config.AUTO_LIKE_STATUS = true; await saveConfig(conn); return reply('✅ AUTO REACT STATUS ENABLED'); }
-    if (option === 'off') { config.AUTO_LIKE_STATUS = false; await saveConfig(conn); return reply('❌ AUTO REACT STATUS DISABLED'); }
-    reply('Use ON or OFF');
-});
+makeToggleCmd('autostatusread', 'AUTO_READ_STATUS', 'AUTO STATUS READ', '👁️');
+makeToggleCmd('autoreact', 'AUTO_REACT', 'AUTO REACT (Messages)', '❤️');
+makeToggleCmd('autoreactstatus', 'AUTO_LIKE_STATUS', 'AUTO REACT STATUS', '💫');
+makeToggleCmd('autotyping', 'AUTO_TYPING', 'AUTO TYPING', '⌨️');
+makeToggleCmd('autorecording', 'AUTO_RECORDING', 'AUTO RECORDING', '🎙️');
+makeToggleCmd('antilink', 'ANTI_LINK', 'ANTI LINK', '🔗');
+makeToggleCmd('antibad', 'ANTI_BAD', 'ANTI BAD', '💬');
+makeToggleCmd('antibot', 'ANTI_BOT', 'ANTI BOT', '🤖');
+makeToggleCmd('alwaysonline', 'ALWAYS_ONLINE', 'ALWAYS ONLINE', '🌐');
+makeToggleCmd('alwaysoffline', 'ALWAYS_OFFLINE', 'ALWAYS OFFLINE', '🌙');
+makeToggleCmd('readcmdonly', 'READ_CMD_ONLY', 'READ CMD ONLY', '📖');
 
-// ===============================
-// AUTO TYPING
-// ===============================
-cmd({
-    pattern: 'autotyping',
-    desc: 'Turn Auto Typing ON/OFF',
-    category: 'settings',
-    react: '⌨️'
-},
-async (conn, mek, m, { args, reply, senderNumber }) => {
-    if (!isOwner(senderNumber, conn)) return reply('❌ OWNER ONLY');
-    if (!args[0]) return reply(`Current Status:\n${config.AUTO_TYPING ? 'ON ✅' : 'OFF ❌'}\n\nExample:\n.autotyping on`);
-    const option = args[0].toLowerCase();
-    if (option === 'on') { config.AUTO_TYPING = true; await saveConfig(conn); return reply('✅ AUTO TYPING ENABLED'); }
-    if (option === 'off') { config.AUTO_TYPING = false; await saveConfig(conn); return reply('❌ AUTO TYPING DISABLED'); }
-    reply('Use ON or OFF');
-});
-
-// ===============================
-// AUTO RECORDING
-// ===============================
-cmd({
-    pattern: 'autorecording',
-    desc: 'Turn Auto Recording ON/OFF',
-    category: 'settings',
-    react: '🎙️'
-},
-async (conn, mek, m, { args, reply, senderNumber }) => {
-    if (!isOwner(senderNumber, conn)) return reply('❌ OWNER ONLY');
-    if (!args[0]) return reply(`Current Status:\n${config.AUTO_RECORDING ? 'ON ✅' : 'OFF ❌'}\n\nExample:\n.autorecording on`);
-    const option = args[0].toLowerCase();
-    if (option === 'on') { config.AUTO_RECORDING = true; await saveConfig(conn); return reply('🎙️ AUTO RECORDING ENABLED'); }
-    if (option === 'off') { config.AUTO_RECORDING = false; await saveConfig(conn); return reply('🎙️ AUTO RECORDING DISABLED'); }
-    reply('Use ON or OFF');
-});
-
-// ===============================
-// ANTI LINK
-// ===============================
-cmd({
-    pattern: 'antilink',
-    desc: 'Turn Anti Link ON/OFF',
-    category: 'settings',
-    react: '🔗'
-},
-async (conn, mek, m, { args, reply, senderNumber }) => {
-    if (!isOwner(senderNumber, conn)) return reply('❌ OWNER ONLY');
-    if (!args[0]) return reply(`Current Status:\n${config.ANTI_LINK ? 'ON ✅' : 'OFF ❌'}\n\nExample:\n.antilink on`);
-    const option = args[0].toLowerCase();
-    if (option === 'on') { config.ANTI_LINK = true; await saveConfig(conn); return reply('✅ ANTI LINK ENABLED'); }
-    if (option === 'off') { config.ANTI_LINK = false; await saveConfig(conn); return reply('❌ ANTI LINK DISABLED'); }
-    reply('Use ON or OFF');
-});
-
-// ===============================
-// ANTI BAD
-// ===============================
-cmd({
-    pattern: 'antibad',
-    desc: 'Turn Anti Bad Words ON/OFF',
-    category: 'settings',
-    react: '💬'
-},
-async (conn, mek, m, { args, reply, senderNumber }) => {
-    if (!isOwner(senderNumber, conn)) return reply('❌ OWNER ONLY');
-    if (!args[0]) return reply(`Current Status:\n${config.ANTI_BAD ? 'ON ✅' : 'OFF ❌'}\n\nExample:\n.antibad on`);
-    const option = args[0].toLowerCase();
-    if (option === 'on') { config.ANTI_BAD = true; await saveConfig(conn); return reply('✅ ANTI BAD ENABLED'); }
-    if (option === 'off') { config.ANTI_BAD = false; await saveConfig(conn); return reply('❌ ANTI BAD DISABLED'); }
-    reply('Use ON or OFF');
-});
-
-// ===============================
-// ANTI BOT
-// ===============================
-cmd({
-    pattern: 'antibot',
-    desc: 'Turn Anti Bot ON/OFF',
-    category: 'settings',
-    react: '🤖'
-},
-async (conn, mek, m, { args, reply, senderNumber }) => {
-    if (!isOwner(senderNumber, conn)) return reply('❌ OWNER ONLY');
-    if (!args[0]) return reply(`Current Status:\n${config.ANTI_BOT ? 'ON ✅' : 'OFF ❌'}\n\nExample:\n.antibot on`);
-    const option = args[0].toLowerCase();
-    if (option === 'on') { config.ANTI_BOT = true; await saveConfig(conn); return reply('✅ ANTI BOT ENABLED'); }
-    if (option === 'off') { config.ANTI_BOT = false; await saveConfig(conn); return reply('❌ ANTI BOT DISABLED'); }
-    reply('Use ON or OFF');
-});
-
-// ===============================
-// ALWAYS ONLINE
-// ===============================
-cmd({
-    pattern: 'alwaysonline',
-    desc: 'Turn Always Online ON/OFF',
-    category: 'settings',
-    react: '🌐'
-},
-async (conn, mek, m, { args, reply, senderNumber }) => {
-    if (!isOwner(senderNumber, conn)) return reply('❌ OWNER ONLY');
-    if (!args[0]) return reply(`Current Status:\n${config.ALWAYS_ONLINE ? 'ON ✅' : 'OFF ❌'}\n\nExample:\n.alwaysonline on`);
-    const option = args[0].toLowerCase();
-    if (option === 'on') { config.ALWAYS_ONLINE = true; await saveConfig(conn); return reply('✅ ALWAYS ONLINE ENABLED'); }
-    if (option === 'off') { config.ALWAYS_ONLINE = false; await saveConfig(conn); return reply('❌ ALWAYS ONLINE DISABLED'); }
-    reply('Use ON or OFF');
-});
-
-// ===============================
-// ALWAYS OFFLINE
-// ===============================
-cmd({
-    pattern: 'alwaysoffline',
-    desc: 'Turn Always Offline ON/OFF',
-    category: 'settings',
-    react: '🌙'
-},
-async (conn, mek, m, { args, reply, senderNumber }) => {
-    if (!isOwner(senderNumber, conn)) return reply('❌ OWNER ONLY');
-    if (!args[0]) return reply(`Current Status:\n${config.ALWAYS_OFFLINE ? 'ON ✅' : 'OFF ❌'}\n\nExample:\n.alwaysoffline on`);
-    const option = args[0].toLowerCase();
-    if (option === 'on') { config.ALWAYS_OFFLINE = true; await saveConfig(conn); return reply('✅ ALWAYS OFFLINE ENABLED'); }
-    if (option === 'off') { config.ALWAYS_OFFLINE = false; await saveConfig(conn); return reply('❌ ALWAYS OFFLINE DISABLED'); }
-    reply('Use ON or OFF');
-});
-
-// ===============================
-// READ CMD ONLY
-// ===============================
-cmd({
-    pattern: 'readcmdonly',
-    desc: 'Read Commands Only ON/OFF',
-    category: 'settings',
-    react: '📖'
-},
-async (conn, mek, m, { args, reply, senderNumber }) => {
-    if (!isOwner(senderNumber, conn)) return reply('❌ OWNER ONLY');
-    if (!args[0]) return reply(`Current Status:\n${config.READ_CMD_ONLY ? 'ON ✅' : 'OFF ❌'}\n\nExample:\n.readcmdonly on`);
-    const option = args[0].toLowerCase();
-    if (option === 'on') { config.READ_CMD_ONLY = true; await saveConfig(conn); return reply('✅ READ CMD ONLY ENABLED'); }
-    if (option === 'off') { config.READ_CMD_ONLY = false; await saveConfig(conn); return reply('❌ READ CMD ONLY DISABLED'); }
-    reply('Use ON or OFF');
-});
-
-// ===============================
-// PREFIX CHANGE
-// ===============================
 cmd({
     pattern: 'setprefix',
     desc: 'Change Bot Prefix',
@@ -264,14 +120,10 @@ cmd({
 async (conn, mek, m, { args, reply, senderNumber }) => {
     if (!isOwner(senderNumber, conn)) return reply('❌ OWNER ONLY');
     if (!args[0]) return reply(`Current Prefix:\n${config.PREFIX}\n\nExample:\n.setprefix .`);
-    config.PREFIX = args[0];
-    await saveConfig(conn);
+    await saveConfig(conn, 'PREFIX', args[0]);
     reply(`✅ PREFIX CHANGED TO ${args[0]}`);
 });
 
-// ===============================
-// MODE CHANGE
-// ===============================
 cmd({
     pattern: 'mode',
     desc: 'Change Bot Mode',
@@ -280,17 +132,17 @@ cmd({
 },
 async (conn, mek, m, { args, reply, senderNumber }) => {
     if (!isOwner(senderNumber, conn)) return reply('❌ OWNER ONLY');
-    if (!args[0]) return reply(`Current Mode:\n${config.WORK_TYPE}\n\nModes:\npublic | private | inbox | groups`);
+    const userConf = await getUserConfig(conn);
+    if (!args[0]) return reply(`Current Mode:\n${userConf.WORK_TYPE}\n\nModes:\npublic | private | inbox | groups`);
     const mode = args[0].toLowerCase();
     const allowed = ['public', 'private', 'inbox', 'groups'];
     if (!allowed.includes(mode)) return reply('❌ INVALID MODE');
-    config.WORK_TYPE = mode;
-    await saveConfig(conn);
+    await saveConfig(conn, 'WORK_TYPE', mode);
     reply(`✅ MODE CHANGED TO ${mode}`);
 });
 
 // ===============================
-// SETTINGS VIEW
+// SETTINGS VIEW - RIKA XMD - Oya photo eke widiyata
 // ===============================
 cmd({
     pattern: 'settings',
@@ -301,74 +153,69 @@ cmd({
 },
 async (conn, mek, m, { from, reply, senderNumber }) => {
     if (!isOwner(senderNumber, conn)) return reply('❌ OWNER ONLY');
-
+    const userConf = await getUserConfig(conn);
     const status = (val) => val === true ? 'ON ✅' : 'OFF ❌';
 
-    const settingsText = `
-╭───〔 *⚙️ ${config.BOT_NAME} ꜱᴇᴛᴛɪɴɢꜱ* 〕───⬣
-│
-│ ◈ *Ｐʀᴇꜰɪx*: [${config.PREFIX}]
-⌥ .setprefix .
-│ ◈ *Ｍᴏᴅᴇ*: ${config.WORK_TYPE}
-⌥ .mode private / public / inbox
-│ ◈ *Ｏᴡɴᴇʀ*: ${config.OWNER_NUMBER}
-│
-│ *🎙️ Ａᴜᴛᴏ ʀᴇᴄᴏʀᴅɪɴɢ*: ${status(config.AUTO_RECORDING)}
-⌥ .autorecording on / off
-│ *⌨️ Ａᴜᴛᴏ ᴛʏᴘɪɴɢ*: ${status(config.AUTO_TYPING)}
-⌥ .autotyping on / off
-│ *👁️ Ａᴜᴛᴏ ꜱᴛᴀᴛᴜꜱ ʀᴇᴀᴅ*: ${status(config.AUTO_READ_STATUS)}
-⌥ .autostatusread on / off
-│ *❤️ Ａᴜᴛᴏ ʀᴇᴀᴄᴛ*: ${status(config.AUTO_REACT)}
-⌥ .autoreact on / off
-│ *💫 Ａᴜᴛᴏ ʀᴇᴀᴄᴛ sᴛᴀᴛᴜs*: ${status(config.AUTO_LIKE_STATUS)}
-⌥ .autoreactstatus on / off
-│ *🔗 Ａɴᴛɪ ʟɪɴᴋ*: ${status(config.ANTI_LINK)}
-⌥ .antilink on / off
-│ *🤖 Ａɴᴛɪ ʙᴏᴛ*: ${status(config.ANTI_BOT)}
-⌥ .antibot on / off
-│ *💬 Ａɴᴛɪ ʙᴀᴅ*: ${status(config.ANTI_BAD)}
-⌥ .antibad on / off
-│ *🌐 Ａʟᴡᴀʏꜱ ᴏɴʟɪɴᴇ*: ${status(config.ALWAYS_ONLINE)}
-⌥ .alwaysonline on / off
-│ *🌙 Ａʟᴡᴀʏꜱ ᴏꜰꜰʟɪɴᴇ*: ${status(config.ALWAYS_OFFLINE)}
-⌥ .alwaysoffline on / off
-│ *📖 Ｒᴇᴀᴅ ᴄᴍᴅ ᴏɴʟʏ*: ${status(config.READ_CMD_ONLY)}
-⌥ .readcmdonly on / off
-│
-> © 𝐏ᴏᴡᴇʀᴅ ʙʏ ꜱʜᴀᴍɪᴋᴀ ᴅᴇɴᴜᴡᴀɴ ❗
-╰────────────────⬣
-`;
+    const settingsText = `🐉 *RIKA-XMD SETTINGS* ⚙️\n\n* Reply This Number Change To Settings ⬇️\n\n` +
+    `"1 Always Online ⬇️"\n1.0 On ✅\n1.1 Off ❌\n\n` +
+    `"2 Msg Auto Read ⬇️"\n2.0 On ✅\n2.1 Off ❌\n\n` +
+    `"3 Auto Typing ⬇️"\n3.0 On ✅\n3.1 Off ❌\n\n` +
+    `"4 Auto React ⬇️"\n4.0 On ✅\n4.1 Off ❌\n\n` +
+    `"5 Channel React ⬇️"\n5.0 On ✅\n5.1 Off ❌\n\n` +
+    `"6 Anti Delete Group (Same Chat) ⬇️"\n6.0 On ✅\n6.1 Off ❌\n\n` +
+    `"7 Anti Delete Inbox (Same Chat) ⬇️"\n7.0 On ✅\n7.1 Off ❌\n\n` +
+    `"8 Status Delete ⬇️"\n8.0 On ✅\n8.1 Off ❌\n\n` +
+    `"9 Group Welcome ⬇️"\n9.0 On ✅\n9.1 Off ❌\n\n` +
+    `╭───〔 *⚙️ 𝐑ɪᴋᴀ xᴍᴅ ꜱᴇᴛᴛɪɴɢꜱ* 〕───⬣\n` +
+    `│ ◈ *Ｐʀᴇꜰɪx*: [${userConf.PREFIX}]\n` +
+    `│ ◈ *Ｍᴏᴅᴇ*: ${userConf.WORK_TYPE}\n` +
+    `│ *🎙️ Auto Recording*: ${status(userConf.AUTO_RECORDING)}\n` +
+    `│ *⌨️ Auto Typing*: ${status(userConf.AUTO_TYPING)}\n` +
+    `│ *👁️ Auto Status Read*: ${status(userConf.AUTO_READ_STATUS)}\n` +
+    `│ *❤️ Auto React*: ${status(userConf.AUTO_REACT)}\n` +
+    `│ *💫 Auto React Status*: ${status(userConf.AUTO_LIKE_STATUS)}\n` +
+    `│ *🔗 Anti Link*: ${status(userConf.ANTI_LINK)}\n` +
+    `│ *🤖 Anti Bot*: ${status(userConf.ANTI_BOT)}\n` +
+    `│ *💬 Anti Bad*: ${status(userConf.ANTI_BAD)}\n` +
+    `│ *🌐 Always Online*: ${status(userConf.ALWAYS_ONLINE)}\n` +
+    `│ *🌙 Always Offline*: ${status(userConf.ALWAYS_OFFLINE)}\n` +
+    `╰────────────────⬣\n> © 𝐏ᴏᴡᴇʀᴅ ʙʏ ꜱʜᴀᴍɪᴋᴀ ᴅᴇɴᴜᴡᴀɴ ❗`;
 
     const channelJid = "120363428073031350@newsletter";
     const channelName = "Ｒɪᴋᴀ xᴍᴅ ꜱᴇᴛᴛɪɴɢꜱ 🐉";
-
     try {
         await conn.sendMessage(from, {
-            image: { url: "https://i.ibb.co/wZrNj38d/6fecc5463333.jpg" },
+            image: { url: "https://i.ibb.co/ZqSp2Ff/0b46628be955.jpg" },
             caption: settingsText,
-            footer: "> ＰᴏᴡᴇʀᴇᴅＢʏ ＳʜᴀᴍɪᴋᴀＤᴇɴᴜᴡᴀɴ 🐉",
-            contextInfo: {
-                forwardingScore: 999,
-                isForwarded: true,
-                forwardedNewsletterMessageInfo: {
-                    newsletterJid: channelJid,
-                    newsletterName: channelName
-                }
-            }
+            contextInfo: { forwardingScore: 999, isForwarded: true, forwardedNewsletterMessageInfo: { newsletterJid: channelJid, newsletterName: channelName } }
         }, { quoted: mek });
     } catch (e) {
-        console.log("Settings Image Error:", e.message);
-        await conn.sendMessage(from, {
-            text: settingsText,
-            contextInfo: {
-                forwardingScore: 999,
-                isForwarded: true,
-                forwardedNewsletterMessageInfo: {
-                    newsletterJid: channelJid,
-                    newsletterName: channelName
-                }
-            }
-        }, { quoted: mek });
+        await conn.sendMessage(from, { text: settingsText }, { quoted: mek });
+    }
+});
+
+// ===============================
+// NUMBER REPLY HANDLER - 1.0 / 1.1
+// ===============================
+cmd({
+    pattern: 'reply-setting-handler',
+    on: 'body',
+    dontAddCommandList: true,
+    category: 'settings'
+},
+async (conn, mek, m, { from, body, reply, senderNumber }) => {
+    if (!body) return;
+    if (!isOwner(senderNumber, conn)) return;
+    const match = body.trim().match(/^(\d+)\.([01])$/);
+    if (!match) return;
+    const settingId = match[1];
+    const value = match[2] === '0' ? true : false;
+    const found = NUMBER_SETTINGS.find(s => s.id === settingId);
+    if (!found) return;
+    const ok = await saveConfig(conn, found.key, value);
+    if (ok) {
+        await reply(`✅ *Setting Updated!*\n\n*${found.name}* : ${value ? 'ON ✅' : 'OFF ❌'}\n*Saved To:* MongoDB ✅\n*Key:* \`${found.key}\`\n\n> 𝐑ɪᴋᴀ xᴍᴅ`);
+    } else {
+        await reply('❌ Save wenne naa, MongoDB error!');
     }
 });
