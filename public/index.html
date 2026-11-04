@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RIKA XMD - MINI BOT V3</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --glass: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --text: #ffffff;
+            --text-dim: rgba(255, 255, 255, 0.6);
+            --error: #ff3366;
+            --success: #00ff88;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            min-height: 100vh;
+            background: 
+                linear-gradient(135deg, rgba(20, 10, 40, 0.85) 0%, rgba(30, 15, 60, 0.9) 100%),
+                url('https://i.ibb.co/Pz1Mxq7n/333baf3e831f.jpg') center/cover no-repeat fixed;
+            font-family: 'Outfit', sans-serif;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Glow blobs - purple + cyan */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -10%;
+            left: 15%;
+            width: 450px;
+            height: 450px;
+            background: radial-gradient(circle, rgba(168, 85, 247, 0.4) 0%, transparent 70%);
+            filter: blur(90px);
+            z-index: 0;
+            animation: floatGlow 9s ease-in-out infinite;
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            bottom: -15%;
+            right: 15%;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(6, 182, 212, 0.35) 0%, transparent 70%);
+            filter: blur(90px);
+            z-index: 0;
+            animation: floatGlow 11s ease-in-out infinite reverse;
+        }
+
+        @keyframes floatGlow {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(40px, -40px) scale(1.15); }
+        }
+
+        /* Landing Page */
+        .landing-page {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 680px;
+            text-align: center;
+            animation: fadeInUp 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .landing-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 22px;
+            background: rgba(168, 85, 247, 0.12);
+            border: 1.5px solid rgba(168, 85, 247, 0.5);
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #a855f7;
+            margin-bottom: 35px;
+            letter-spacing: 1.5px;
+            backdrop-filter: blur(10px);
+        }
+
+        .landing-title {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 18px;
+            background: linear-gradient(90deg, #a855f7, #06b6d4, #22d3ee);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -1px;
+            line-height: 1.2;
+        }
+
+        .landing-sub {
+            font-size: 1.15rem;
+            color: var(--text-dim);
+            margin-bottom: 50px;
+            font-weight: 500;
+            line-height: 1.6;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+            margin-bottom: 50px;
+        }
+
+        .feature-card {
+            background: var(--glass);
+            border: 1.5px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 24px 16px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            backdrop-filter: blur(20px);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transition: left 0.6s ease;
+        }
+
+        .feature-card:hover::before {
+            left: 100%;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            background: rgba(168, 85, 247, 0.08);
+            border-color: rgba(168, 85, 247, 0.4);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        /* Start Button - Purple/Cyan Gradient */
+        .start-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 180px;
+            height: 60px;
+            padding: 0 32px;
+            background: linear-gradient(135deg, #a855f7, #06b6d4);
+            border: none;
+            border-radius: 18px;
+            color: white;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 0.5px;
+            box-shadow: 0 0 30px rgba(168, 85, 247, 0.4);
+        }
+
+        .start-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.8s ease;
+        }
+
+        .start-btn:hover::before {
+            transform: translateX(100%);
+        }
+
+        .start-btn:hover {
+            transform: translateY(-4px) scale(1.05);
+            box-shadow: 0 16px 48px rgba(168, 85, 247, 0.6);
+        }
+
+        /* Owner Button - Glass Style */
+        .owner-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 180px;
+            height: 60px;
+            padding: 0 32px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 2px solid var(--glass-border);
+            border-radius: 18px;
+            color: white;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 0.5px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        }
+
+        .owner-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.8s ease;
+        }
+
+        .owner-btn:hover::before {
+            transform: translateX(100%);
+        }
+
+        .owner-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: #a855f7;
+            transform: translateY(-4px) scale(1.05);
+            box-shadow: 0 16px 48px rgba(168, 85, 247, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            .feature-grid { grid-template-columns: repeat(2, 1fr); }
+            .landing-title { font-size: 2.5rem; }
+        }
+
+        @media (max-width: 480px) {
+            .feature-grid { grid-template-columns: 1fr; }
+            .landing-title { font-size: 2rem; }
+            .button-group { flex-direction: column; align-items: center; }
+            .owner-btn, .start-btn { width: 100%; max-width: 300px; }
+        }
+
+        /* Container - Pair Page */
+        .container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 460px;
+            animation: fadeIn 0.8s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        /* Header */
+        .brand {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .brand-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, #a855f7, #06b6d4);
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 8px 32px rgba(168, 85, 247, 0.3);
+            animation: floatIcon 3s ease-in-out infinite;
+        }
+
+        @keyframes floatIcon {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .brand-icon svg {
+            width: 42px;
+            height: 42px;
+            fill: white;
+        }
+
+        .brand h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(90deg, #a855f7, #06b6d4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand p {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .pulse {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            box-shadow: 0 0 12px var(--success);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.8); }
+        }
+
+        /* Glass Card */
+        .card {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 28px;
+            padding: 36px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-label {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 24px;
+            font-weight: 600;
+        }
+
+        /* Input */
+        .input-group {
+            display: flex;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1.5px solid var(--glass-border);
+            border-radius: 16px;
+            overflow: hidden;
+            margin-bottom: 18px;
+            transition: all 0.3s ease;
+        }
+
+        .input-group:focus-within {
+            border-color: #a855f7;
+            box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.1);
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        .input-prefix {
+            padding: 0 20px;
+            display: flex;
+            align-items: center;
+            color: #a855f7;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 1.1rem;
+            border-right: 1px solid var(--glass-border);
+        }
+
+        input[type="tel"] {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.1rem;
+            padding: 0 20px;
+            height: 58px;
+            letter-spacing: 1px;
+        }
+
+        input::placeholder {
+            color: var(--text-dim);
+            font-family: 'Outfit', sans-serif;
+            letter-spacing: 0;
+        }
+
+        /* Button */
+        .btn {
+            width: 100%;
+            height: 58px;
+            background: linear-gradient(135deg, #a855f7, #06b6d4);
+            border: none;
+            border-radius: 16px;
+            color: white;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.6s ease;
+        }
+
+        .btn:hover:not(:disabled)::before {
+            transform: translateX(100%);
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 40px rgba(168, 85, 247, 0.4);
+        }
+
+        .btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-inner {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Result */
+        .result { margin-top: 28px; display: none; }
+        .result.show {
+            display: block;
+            animation: slideUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Code Box */
+        .code-box {
+            background: rgba(0, 0, 0, 0.4);
+            border: 2px solid #a855f7;
+            border-radius: 20px;
+            padding: 32px 24px;
+            text-align: center;
+            box-shadow: 0 0 40px rgba(168, 85, 247, 0.2);
+        }
+
+        .code-label {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+
+        .code-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2.8rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #a855f7, #06b6d4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 10px;
+            margin-bottom: 20px;
+        }
+
+        .copy-btn {
+            background: rgba(168, 85, 247, 0.1);
+            border: 1.5px solid #a855f7;
+            border-radius: 12px;
+            color: #a855f7;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            font-size: 0.85rem;
+            padding: 10px 24px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .copy-btn:hover {
+            background: rgba(168, 85, 247, 0.2);
+            transform: scale(1.05);
+        }
+
+        .copy-btn.copied {
+            background: rgba(0, 255, 136, 0.2);
+            border-color: var(--success);
+            color: var(--success);
+        }
+
+        /* Instructions */
+        .instructions {
+            margin-top: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 20px;
+        }
+
+        .instructions p {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            line-height: 1.8;
+        }
+
+        .instructions span {
+            color: #a855f7;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+        }
+
+        /* Error */
+        .error-box {
+            background: rgba(255, 51, 102, 0.1);
+            border: 1.5px solid var(--error);
+            border-radius: 16px;
+            padding: 18px 20px;
+            font-size: 0.9rem;
+            color: var(--error);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 32px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- LANDING PAGE -->
+<div id="landingPage" class="landing-page">
+    <div class="landing-badge">RIKA XMD MINI BOT V3</div>
+    <h1 class="landing-title">RIKA XMD FEATURES</h1>
+    <p class="landing-sub">Multi Device WhatsApp Bot with AI, Downloads & Advanced Tools</p>
+
+    <!-- GET STARTED උඩටම -->
+    <div class="button-group" style="margin-bottom: 45px;">
+        <button class="start-btn" onclick="startBot()">GET STARTED</button>
+    </div>
+
+    <div class="feature-grid">
+        <div class="feature-card">🎧 SONG DL</div>
+        <div class="feature-card">📥 TIKTOK DL</div>
+        <div class="feature-card">🎭 CHANEL SONG SENDER</div>
+        <div class="feature-card">🛡️ ANTI DELETE</div>
+        <div class="feature-card">👥 GROUP TOOLS</div>
+        <div class="feature-card">⚡ FAST RESPONSE</div>
+    </div>
+
+    <div class="button-group">
+        <a href="https://wa.me/94766619363" class="owner-btn" target="_blank">CONTACT OWNER</a>
+    </div>
+</div>
+
+<!-- PAIR PAGE -->
+<div class="container" id="pairPage" style="display:none;">
+    <div class="brand">
+        <div class="brand-icon">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.978-1.41A9.956 9.956 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 01-4.078-1.117l-.292-.174-3.037.86.862-3.123-.191-.305A8 8 0 1112 20zm4.406-5.845c-.241-.121-1.428-.705-1.65-.786-.22-.081-.38-.121-.54.122-.16.242-.62.785-.76.946-.14.16-.28.18-.52.06-.241-.12-1.018-.375-1.939-1.198-.717-.64-1.201-1.43-1.342-1.672-.14-.242-.015-.373.105-.493.108-.108.24-.283.362-.424.12-.142.16-.243.24-.404.08-.161.04-.303-.02-.424-.06-.12-.54-1.303-.74-1.784-.195-.468-.392-.404-.54-.412l-.46-.008c-.16 0-.42.06-.64.303-.22.242-.84.822-.84 2.003 0 1.18.86 2.322.98 2.483.12.16 1.693 2.585 4.103 3.625.573.247 1.02.395 1.368.505.575.183 1.098.157 1.512.095.461-.069 1.42-.58 1.62-1.14.2-.562.2-1.043.14-1.143-.06-.1-.22-.16-.46-.282z"/>
+            </svg>
+        </div>
+        <h1>RIKA XMD MINI V3</h1>
+        <p><span class="pulse"></span>Pairing System</p>
+    </div>
+
+    <div class="card">
+        <div class="card-label">Connect Device</div>
+        <div class="input-group">
+            <div class="input-prefix">+</div>
+            <input type="tel" id="phoneInput" placeholder="94XXXXXXXXX" maxlength="20"/>
+        </div>
+        <button class="btn" id="pairBtn" onclick="getPairingCode()">
+            <div class="btn-inner" id="btnContent">
+                <span>GET PAIRING CODE</span>
+            </div>
+        </button>
+        <div class="result" id="result"></div>
+    </div>
+
+    <div class="footer">POWERED BY SHAMIKA DENUWAN / RIKA TECH FREE BOT</div>
+</div>
+
+<script>
+    function startBot() {
+        document.getElementById('landingPage').style.display = 'none';
+        document.getElementById('pairPage').style.display = 'block';
+    }
+
+    document.getElementById('phoneInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') getPairingCode();
+    });
+
+    async function getPairingCode() {
+        const input = document.getElementById('phoneInput');
+        const btn = document.getElementById('pairBtn');
+        const btnContent = document.getElementById('btnContent');
+        const resultDiv = document.getElementById('result');
+        const number = input.value.trim().replace(/[^0-9]/g, '');
+
+        if (!number || number.length < 7) {
+            showError('ℹ️ Valid phone number ekak denna.', resultDiv);
+            return;
+        }
+
+        btn.disabled = true;
+        btnContent.innerHTML = '<div class="spinner"></div><span>CONNECTING...</span>';
+        resultDiv.className = 'result';
+
+        try {
+            const response = await fetch(`/pair?number=${encodeURIComponent(number)}`);
+            const data = await response.json();
+            if (data.code) {
+                showCode(data.code, resultDiv, number);
+            } else if (data.error) {
+                showError('❌ ' + data.error, resultDiv);
+            } else {
+                showError('❌ Unexpected response. Bot is likely already registered.', resultDiv);
+            }
+        } catch (err) {
+            showError('❌ Server connection failed. Please try again.', resultDiv);
+        }
+
+        btn.disabled = false;
+        btnContent.innerHTML = '<span>GET PAIRING CODE</span>';
+    }
+
+    function showCode(code, container, number) {
+        container.innerHTML = `
+            <div class="code-box">
+                <div class="code-label">Pairing Code</div>
+                <div class="code-value" id="codeDisplay">${code}</div>
+                <button class="copy-btn" id="copyBtn" onclick="copyCode('${code}')">COPY CODE</button>
+            </div>
+            <div class="instructions">
+                <p>
+                    WhatsApp dala <span>Settings → Linked Devices → Link a Device</span>
+                    → <span>Link with phone number</span> kiyala select karanna.<br><br>
+                    Meeka entry karanna: <span>${number}</span>
+                </p>
+            </div>
+        `;
+        container.className = 'result show';
+    }
+
+    function showError(msg, container) {
+        container.innerHTML = `<div class="error-box">${msg}</div>`;
+        container.className = 'result show';
+    }
+
+    function copyCode(code) {
+        navigator.clipboard.writeText(code).then(() => {
+            const btn = document.getElementById('copyBtn');
+            btn.textContent = 'COPIED ✓';
+            btn.classList.add('copied');
+            setTimeout(() => {
+                btn.textContent = 'COPY CODE';
+                btn.classList.remove('copied');
+            }, 2000);
+        });
+    }
+</script>
+</body>
+    </html>
