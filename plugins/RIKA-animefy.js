@@ -1,6 +1,6 @@
 const { cmd } = require("../command");
 const { getRandom } = require("../lib/functions");
-const { downloadMediaMessage } = require("@dnuzi/baileys");
+const { downloadMediaMessage } = require("@whiskeysockets/baileys");
 const fs = require("fs").promises;
 const sharp = require("sharp");
 const path = require("path");
