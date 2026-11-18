@@ -1,7 +1,7 @@
 const { cmd } = require('../command');
 const axios = require('axios');
 const FormData = require('form-data');
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { downloadContentFromMessage } = require('@dnuzi/baileys');
 
 cmd({
     pattern: "tourl",
