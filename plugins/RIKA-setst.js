@@ -1,4 +1,4 @@
-const { downloadMediaMessage } = require('@whiskeysockets/baileys')
+const { downloadMediaMessage } = require('@dnuzi/baileys')
 const fs = require('fs')
 
 module.exports = {
